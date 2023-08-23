@@ -1,0 +1,280 @@
+---
+title: "ST 405 - Mini Project 1"
+author: "Lasantha Kulasooriya - (S/17/404)"
+format: docx
+editor: visual
+---
+
+# Factor Analysis for the Life Expectancy Data set
+
+#### Explanatory Data Analysis
+
+```{r}
+library(readr)
+library(dplyr)
+library(mice)
+library(ggplot2)
+library(gplots)
+library(psych)
+library(nFactors)
+library(lavaan)
+```
+
+```{r}
+#Importing data
+lifeExp.data <- read.csv("../data/Life Expectancy Data.xls")
+head(lifeExp.data)
+```
+
+```{r}
+colnames(lifeExp.data)
+```
+
+```{r}
+#dimension of the data
+dim(lifeExp.data)
+```
+
+```{r}
+#structure of the dataset
+str(lifeExp.data)
+```
+
+#### Missing Values
+
+```{r}
+propmiss <- colSums(is.na(lifeExp.data))/nrow(lifeExp.data) 
+print(paste(colnames(lifeExp.data), round(propmiss, 2),"%",sep = ))
+```
+
+```{r}
+#visualizing missing values
+md.pattern(lifeExp.data, plot = TRUE, rotate.names = TRUE)
+```
+
+```{r}
+#removing missing values
+lifeExp.data <- na.omit(lifeExp.data)
+
+propmiss <- colSums(is.na(lifeExp.data))/nrow(lifeExp.data) 
+round(propmiss, 2)
+```
+
+```{r}
+#visualizing missing values
+md.pattern(lifeExp.data, plot = TRUE, rotate.names = TRUE)
+```
+
+Missing values are removed.
+
+#### Summary
+
+```{r}
+#summary
+summary(lifeExp.data)
+```
+
+```{r}
+#selecting numerical variables
+lifeExp.num <- lifeExp.data[,-c(1:3)]
+head(lifeExp.num)
+```
+
+```{r}
+dim(lifeExp.num)
+```
+
+#### Correlation Matrix
+
+```{r}
+corr_mat <- cor(lifeExp.num, method = "spearman")
+round(corr_mat,3)
+```
+
+```{r}
+library("GGally")
+ggcorr(lifeExp.num,nbreaks = 4,palette = "RdGy",label = T,
+       size=2.5, label_size = 2.5,label_color = "white") 
+```
+
+#### Kaiser-Meyer-Oklin Test(KMO)
+
+```{r}
+KMO(lifeExp.num)
+```
+
+In, KMO statistics all the KMO overall should be 0.60 or higher to proceed with factor analysis. Since the overall KMO is 0.8(\>0.6), we can proceed with factor analysis.
+
+#### Bartlett's test (Homogeneity of Variances)
+
+```{r}
+#bartlett Test
+cortest.bartlett(corr_mat, n=1649)
+```
+
+Since p-value \< 0.001, we can say that the correlation matrix is significantly different from an identity matrix, in which correlations between variables are all zero. Therefore factor analysis is appropriate**.**
+
+#### Standardizing each variable
+
+```{r}
+#scale df
+lifeExp.scaled <- apply(lifeExp.num, 2, scale)
+```
+
+## Factor Analysis
+
+### Explanatory Factor Analysis
+
+#### Eigen Values
+
+```{r}
+lifeExp.scaled.cor <- cor(lifeExp.scaled)
+lifeExp.eigen <- eigen(lifeExp.scaled.cor)
+round(lifeExp.eigen$values,4)
+```
+
+```{r}
+sum(lifeExp.eigen$values)
+```
+
+```{r}
+cum_prop <- round((cumsum(lifeExp.eigen$values) / 19),4)
+cum_prop
+```
+
+```{r}
+#eigen values cumulative proportion at least 0.80
+cum_prop > .80
+```
+
+#### Screeplot
+
+```{r}
+plot(nScree(x=lifeExp.scaled.cor, model = "factors"))
+
+```
+
+```{r}
+#eigen values at least greater than 1
+lifeExp.eigen$values > 1
+```
+
+**So, finally by scree plot, eigen values at least greater than 1 we can conclude that the number of factors are 5.**
+
+```{r}
+#estimate the number of factors
+lifeExp.fa.varimax <- factanal(lifeExp.scaled, factors = 5, rotation = "varimax")
+```
+
+```{r}
+#summary of the factors selected
+lifeExp.fa.varimax
+```
+
+#### Uniqueness
+
+```{r}
+#uniqueness
+lifeExp.fa.varimax$uniquenesses
+```
+
+Uniqueness ranges from 0 to 1. The fraction of variability that cannot be explained by a linear combination of the elements is known as uniqueness, which is also referred to as noise. A high uniqueness for a variable indicates that the factors do not account well for its variance.
+
+#### Communalities
+
+```{r}
+#Communality
+apply(lifeExp.fa.varimax$loadings^2, 1, sum)
+```
+
+By squaring the loading we compute the fraction of the variable's total variance explained by the factor. This proportion of the variability is denoted as **communality**. Another way to calculate the communality is to subtract the uniquenesses from 1. An appropriate factor model results in low values for uniqueness and high values for communality.
+
+```{r}
+#there are 19 variables and 5 factors
+round(lifeExp.fa.varimax$loadings[1:19,] ,3)
+```
+
+Using varimax rotations,
+
+-   Factor 1 :-
+    This factor has high loadings for variables such as infant deaths (0.969) and under-five deaths (0.967), indicating a strong association between these variables. So, we can explain this factor as **child mortality** factor.
+
+-   Factor 2 :-
+    This factor has a high positive loading for life expectancy (0.908) and a high negative loading for adult mortality (-0.689). According to these values we can say that the higher values on this factor are associated with higher life expectancy and lower adult mortality rates. So, we can explain this factor as **adult mortality** factor.
+
+-   Factor 3 :-
+    This factor has high negative loadings for variables such as BMI (-0.470), thinness in 1-19 years (-0.470), and thinness in 5-9 years (-0.208). According to these values we can say that the higher values on this factor are associated with lower BMI and higher rates of thinness. we can explain this factor as **body composition and nutritional indicator** factor.
+
+-   Factor 4 :-
+    This factor has a high positive loadings for variables such as percentage expenditure (0.946) and GDP (0.965).These values indicated that the higher values on this factor are associated with higher percentage expenditure and GDP.So, this means we can explain this factor as **economic indicator** factor.
+
+-   Factor 5 :- This is factor has a high positive loading for Diphtheria (0.806) and moderate positive loadings for variables such as Hepatitis B (0.657).
+    Acccording to these values higher values on this factor are associated with better Diphtheria and Hepatitis B vaccination coverage. This means this is the factor that explains the **specific diseases** factor.
+
+#### Residual Matrix
+
+```{r}
+# Extract residual matrix
+Lambda <- lifeExp.fa.varimax$loadings
+Psi <- diag(lifeExp.fa.varimax$uniquenesses)
+S <- lifeExp.fa.varimax$correlation
+Sigma <- Lambda %*% t(Lambda) + Psi
+# residual matrix
+round(S - Sigma, 4)
+```
+
+In **residual matrix**, Numbers close to 0 indicate that our factor model is a good representation of the underlying concept.
+
+#### Factor Rotations
+
+```{r}
+#varimax
+lifeExp.fa.none <- factanal(x=lifeExp.scaled, factors = 5, rotation = "none")
+lifeExp.fa.none
+```
+
+```{r}
+#there are 19 variables and 5 factors
+round(lifeExp.fa.none$loadings[1:19,] ,3)
+```
+
+```{r}
+#promax
+lifeExp.fa.promax <- factanal(x=lifeExp.scaled, factors = 5, rotation = "promax")
+lifeExp.fa.promax
+```
+
+```{r}
+#there are 19 variables and 5 factors
+round(lifeExp.fa.promax$loadings[1:19,] ,3)
+```
+
+### Confirmatory Factor Analysis
+
+```{r}
+#there are 19 variables and 5 factors
+round(lifeExp.fa.varimax$loadings[1:19,] ,3)
+```
+
+```{r}
+factor.loadings <- lifeExp.fa.varimax$loadings
+factor.scores <- factor.scores(lifeExp.scaled, lifeExp.fa.varimax$loadings)
+#factor.scores
+```
+
+```{r}
+model = '# Define latent factors
+            Factor1 =~ Life.expectancy + Adult.Mortality + Alcohol + BMI + 
+            Polio + Total.expenditure + Diphtheria + GDP + thinness..1.19.years + 
+            thinness.5.9.years
+            Factor2 =~ Hepatitis.B + under.five.deaths + Measles
+            Factor3 =~ Income.composition.of.resources + percentage.expenditure +     Schooling
+            Factor4 =~ infant.deaths + HIV.AIDS 
+            Factor5 =~ Population
+'   
+lifeExp.cfa <- cfa(model, data=lifeExp.scaled,std.lv = TRUE,check.gradient = FALSE)
+```
+
+```{r}
+lavInspect(lifeExp.cfa, "cov.lv") 
+```
